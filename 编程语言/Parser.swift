@@ -1,8 +1,11 @@
 import Foundation
 /*LL下降分析器*/
 class Function: NSObject {
-    @objc func print(_ t: [String]) {
+    @objc func print(_ t: [String]){
         NSLog(t.joined(separator: " "))
+    }
+    @objc func print() {
+        NSLog(" ")
     }
 }
 class LLParser {
@@ -25,19 +28,26 @@ class LLParser {
             try value()
         }
     }
+    func funct(_ l: String) throws -> Any?{
+        nextToken()
+        if let e = try F(), (functions[l] ?? []).first == "内置"{
+            let fun = Function()
+            var actionStr = l+":"
+            var sel = NSSelectorFromString(actionStr)
+            if e == "" {
+                actionStr = l
+                sel = NSSelectorFromString(actionStr)
+                return fun.perform(sel).takeRetainedValue()
+            } else {
+                return fun.perform(sel, with: e.split(separator: "|{,}|")).takeRetainedValue()
+            }
+        }
+        return nil
+    }
     func value() throws {
         var l = lookahead
         if functions.keys.contains(l){
-            nextToken()
-            if let e = try E(), (functions[l] ?? []).first == "内置"{
-                let fun = Function()
-                var sel = NSSelectorFromString(l+":")
-                if e == "" {
-                    sel = NSSelectorFromString(l)
-                    fun.perform(sel)
-                } else {
-                    fun.perform(sel, with: e.split(separator: "|{,}|"))
-                }
+            if let _ = try funct(l){
                 return
             }
             NSLog("语法错误")
@@ -195,6 +205,12 @@ class LLParser {
                 let f = varriables[lookahead]!
                 nextToken()
                 return f["value"]! as? String
+            }
+            if functions[lookahead] != nil {
+                if let funct = try funct(lookahead){
+                    return funct as? String ?? "()"
+                }
+                return "()"
             }
             if(lookahead == ")") {
                 return ""
