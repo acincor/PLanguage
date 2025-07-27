@@ -68,6 +68,7 @@ public:
     vector<double> nums;
     vector<string> symbols;
     int tI = 0;
+    string errors = "";
     string read;
     long unsigned int count = 0;
     int spaceCount = 0;
@@ -192,11 +193,11 @@ public:
                     
                 } catch(const std:: invalid_argument &ia) {
                     tokens.push_back("\n");
-                    cout << ">> error: illegal identifier '"+tokens[tI-1]+"'\n";
+                    errors+=">> error: illegal identifier '"+tokens[tI-1]+"'\n";
                     return tuple<string, string>("error","illegal identifier '"+tokens[tI-1]+"'");
                 } catch(const std::out_of_range& oor) {
                     tokens.push_back("\n");
-                    cout << ">> error: illegal identifier '"+tokens[tI-1]+"'\n";
+                    errors+=">> error: illegal identifier '"+tokens[tI-1]+"'\n";
                     return tuple<string, string>("error","illegal identifier '"+tokens[tI-1]+"'");
                 }
                 break;
@@ -266,7 +267,7 @@ public:
                 tokens.push_back("\n");
                 ostringstream oss;
                 oss << "illegal identifier '" << cha << "'";
-                cout << ">> error: "+oss.str()+"\n";
+                errors+=">> error: "+oss.str()+"\n";
                 return tuple<string, string>("error",oss.str());
         }
     }
@@ -278,13 +279,11 @@ public:
         }
     }
     char character;
-    LLLexer(const std::string& input) {
-        std::istringstream iss(input);
-        while(getline(iss, read)) {
+    LLLexer() {
+        while(getline(cin, read)) {
             read += "\n";
             readOneLine();//读取一行
         }
-         
     }
 };
 char first(string s) {
@@ -298,12 +297,13 @@ string first(vector<string> s) {
     return s[0];
 }
 char last(string s) {
-    if(s.size() < 0)
+    if(s.size() <= 0)
         return '\0';
     return s[s.size()-1];
 }
+string results = "";
 void addingResult(string message) {
-    cout << message;
+    results+=message;
 }
 std::vector<std::string> split(const std::string& str, const std::string& delimiter, bool keep_empty = false) {
     std::vector<std::string> tokens;
@@ -382,7 +382,8 @@ private:
 };
 class LLParser {
     int status_code = 200;
-    map<string,map<string,string>> varriables;
+    public:
+    map<string,map<string,string>> variables;
     map<string,vector<string>> functions = {{"print", {"内置"}}};
     vector<string> tokens;
     string lookahead;
@@ -403,10 +404,37 @@ class LLParser {
         i++;
         lookahead = tokens[i];
     }
+    void backToken() {
+        i--;
+        lookahead = tokens[i];
+    }
+    int check(string s) {
+        return (s.size() > 1 && s != "()") ? true : (s.size() > 0 ? isalpha(first(s)) || isdigit(first(s)) : false);
+    }
     void V() {
         compileStatus+="V";
-        while(lookahead.size() > 1 ? true : (lookahead.size() > 0 ? isalpha(first(lookahead)) || isdigit(first(lookahead)) : false)){
-            value();
+        while(check(lookahead)) {
+            string tmp = lookahead, type = "NULL";
+            nextToken();
+            if(lookahead == "=") {
+                nextToken();
+                dealWithVariables(type, tmp);
+            } else if(lookahead == ":") {
+                nextToken();
+                type = lookahead;
+                dealWithVariables(type, tmp);
+                nextToken();
+            } else {
+                backToken();
+                auto e = E();
+                if(check(e)) {
+                    convertToDouble(e);
+                    if(status_code != 200) {
+                        e = "\"" + e + "\"";
+                    }
+                    addingResult(e+"\n");
+                }
+            }
             if(lookahead == ";")nextToken();
         }
     }
@@ -433,61 +461,25 @@ class LLParser {
         }
         return "NULL";
     }
-    void value() {
-        convertToDouble(lookahead);
-        string name = lookahead;
-        if (functions.find(lookahead) != functions.end()){
-            if (funct(lookahead) != "NULL") {
-                return;
-            }
-            addingResult("语法错误\n");
-            nextToken();
-        } else if (first(lookahead) == '\"') {
-            if(last(lookahead) != '\"' || lookahead.size() == 1) {
-                addingResult("error='\"' is missing\n");
-                return;
-            }
-            addingResult(lookahead+"\n");
-            nextToken();
-            return;
-        } else if (status_code == 200) {
-            addingResult(lookahead+"\n");
-            nextToken();
-            return;
-        }
-        nextToken();
-        string value="NULL", type="NULL";
-        if (lookahead == "=") {
-            nextToken();
-            value = lookahead;
-        }
-        else if (lookahead == ":") {
-            nextToken();
-            type = lookahead;
-        }
-        dealWithVarriables(value, type, name);
-    }
-    void dealWithVarriables(string value, string type, string name) {
-        if(varriables.find(name) == varriables.end()) {
+    void dealWithVariables(string type, string name) {
+        if(variables.find(name) == variables.end()) {
             if(type != "NULL")
                 if (find(classIn.begin(),classIn.end(), type) == classIn.end()) {
-                    addingResult(">> Cannot assign value of type another to subscript of type '"+varriables[name]["type"]+"'\n");
+                    addingResult(">> Cannot assign value of type another to subscript of type '"+variables[name]["type"]+"'\n");
                     nextToken();
                     return;
                 }
-            varriables[name] = {{"type",type},{"name",name},{"value",value}};
-            nextToken();
-            V();
+            variables[name] = {{"type",type},{"name",name},{"value", (type != "NULL") ? "NULL" : E()}};
             return;
         }
-        if(value == "NULL") {
+        if(type != "NULL") {
             addingResult(">> Cannot have duplicate definitions\n");
             nextToken();
             return;
         }
         auto e = E();
-        if (varriables[name]["type"] == ((first(value) == last(value) && first(value) == '\"') ? "string" : "double"))
-            varriables[name]["value"] = e;
+        if (variables[name]["type"] == ((first(e) == last(e) && first(e) == '\"') ? "string" : "double"))
+            variables[name]["value"] = e;
         else
             addingResult(">> 类型出现问题\n");
     }
@@ -590,7 +582,6 @@ class LLParser {
                 }
                 lookahead.erase(0,1);
                 lookahead.erase(lookahead.size()-1);
-                
                 return getAndNext();
             }
             else if(lookahead == "(") {
@@ -604,8 +595,8 @@ class LLParser {
                     addingResult("error=')' is missing\n");
             }
             else{
-                if (varriables.find(lookahead) != varriables.end()) {
-                    auto f = varriables[lookahead];
+                if (variables.find(lookahead) != variables.end()) {
+                    auto f = variables[lookahead];
                     nextToken();
                     return f["value"];
                 }
@@ -629,28 +620,18 @@ class LLParser {
 public:
     string compileStatus = "";
     LLParser(vector<string> token) {
-        addingResult("==语法分析开始==\n");
+        results = "==语法分析开始==\n";
         tokens = token;
         i = 0;
         lookahead = tokens[0];
         V();
-        addingResult("==语法分析结束==\n");
+        results+="==语法分析结束==\n";
     }
 };
 int main(int argc, const char * argv[]) {
-     
-     // 读取输入文件内容
-     std::ifstream ifile(argv[1], ios::binary | ios::in);
-     if (!ifile.is_open()) {
-                 std::cerr << "无法打开输入文件: " << argv[1] << std::endl;
-         return 0;
-             }
-     std::string content((std::istreambuf_iterator<char>(ifile)),
-                         std::istreambuf_iterator<char>());
-     ifile.close();
-     // 处理词法分析
-     LLLexer lexer(content);
-     
-     // 语法分析并获取结果
-     LLParser parser(lexer.tokens);
+    LLLexer lexer = LLLexer();
+    LLParser parser(lexer.tokens);
+    //printf("%s", (lexer.errors+results).c_str()); 可能缺少函数输出值
+    cout << lexer.errors+results;
+    return 0;
 }
