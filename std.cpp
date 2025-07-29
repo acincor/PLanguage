@@ -473,7 +473,6 @@ class LLParser {
         }
         if(type != "NULL") {
             addingResult(">> Cannot have duplicate definitions\n");
-            nextToken();
             return;
         }
         auto e = E();
