@@ -465,8 +465,7 @@ class LLParser {
         if(variables.find(name) == variables.end()) {
             if(type != "NULL")
                 if (find(classIn.begin(),classIn.end(), type) == classIn.end()) {
-                    addingResult(">> Cannot assign value of type another to subscript of type '"+variables[name]["type"]+"'\n");
-                    nextToken();
+                    addingResult(">> Use of undeclared identifier '"+type+"'\n");
                     return;
                 }
             variables[name] = {{"type",type},{"name",name},{"value", (type != "NULL") ? "NULL" : E()}};
@@ -481,7 +480,7 @@ class LLParser {
         if (variables[name]["type"] == ((first(e) == last(e) && first(e) == '\"') ? "string" : "double"))
             variables[name]["value"] = e;
         else
-            addingResult(">> 类型出现问题\n");
+            addingResult(">> Cannot assign value of type another to subscript of type '"+variables[name]["type"]+"'\n");
     }
     string deal(int op, double &result) {
         double t2 = convertToDouble(T());
